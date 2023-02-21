@@ -1,5 +1,5 @@
 {
-  "name": "@deepfleet/ocpp-ts",
+  "name": "df-ocpp-ts",
   "version": "1.0.1",
   "description": "OCPP 1.6: Open Charge Point Protocol",
   "main": "dist/src/index.js",
