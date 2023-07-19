@@ -2,7 +2,7 @@ import {
   OcppServer, OcppClientConnection, BootNotificationRequest, BootNotificationResponse,
 } from '../src';
 
-const centralSystemSimple = new OcppServer();
+const centralSystemSimple = new OcppServer({});
 centralSystemSimple.listen(9220);
 centralSystemSimple.on('connection', (client: OcppClientConnection) => {
   console.log(`Client ${client.getCpId()} connected`);

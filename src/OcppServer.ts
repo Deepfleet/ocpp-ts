@@ -1,14 +1,13 @@
+/* eslint-disable @typescript-eslint/no-useless-constructor */
 import { SecureContextOptions } from 'tls';
 import { IncomingMessage } from 'http';
 import { Server } from './impl/Server';
 import { OcppClientConnection } from './OcppClientConnection';
-import { OcppServerOptions } from './OcppServerOptions';
+import { ServerOptions } from './impl/ServerOptions';
 
 export class OcppServer extends Server {
-  constructor(options: OcppServerOptions) {
-    super({
-      pingInterval: options?.websocketPingInterval,
-    });
+  constructor(options: ServerOptions) {
+    super(options);
   }
 
   listen(port: number = 9220, options?: SecureContextOptions) {

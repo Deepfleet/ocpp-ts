@@ -4,7 +4,7 @@ import {
   OcppServer, OcppClientConnection, BootNotificationRequest, BootNotificationResponse,
 } from '../src';
 
-const cs = new OcppServer();
+const cs = new OcppServer({});
 cs.on('connection', (client: OcppClientConnection) => {
   console.log(`Client ${client.getCpId()} connected`);
   client.on('close', (code: number, reason: Buffer) => {
