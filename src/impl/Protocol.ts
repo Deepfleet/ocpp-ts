@@ -24,6 +24,7 @@ export class Protocol {
     this.eventEmitter = eventEmitter;
     this.socket = socket;
     this.socket.on('message', (message) => {
+      console.log(`Message -> ${message.toString()}`);
       this.onMessage(message.toString());
     });
   }

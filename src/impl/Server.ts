@@ -1,3 +1,5 @@
+/* eslint-disable no-console */
+/* eslint-disable @typescript-eslint/quotes */
 import EventEmitter from 'events';
 import WebSocket, { WebSocketServer } from 'ws';
 import { SecureContextOptions } from 'tls';
@@ -8,11 +10,21 @@ import { OCPP_PROTOCOL_1_6 } from './schemas';
 import { Client } from './Client';
 import { OcppClientConnection } from '../OcppClientConnection';
 import { Protocol } from './Protocol';
+import { ServerOptions } from './ServerOptions';
 
 export class Server extends EventEmitter {
   private server: WebSocket.Server | null = null;
 
   private clients: Array<Client> = [];
+
+  private options: ServerOptions;
+
+  private DEFAULT_PING_INTERVEL = 30000;
+
+  constructor(options: ServerOptions) {
+    super();
+    this.options = options;
+  }
 
   protected listen(port = 9220, options?: SecureContextOptions) {
     let server;
@@ -30,6 +42,19 @@ export class Server extends EventEmitter {
         }
         return false;
       },
+    });
+
+    wss.on('wsClientError', (err, request) => {
+      console.error(`Error ->wsClientError from ${request.url}`);
+      console.error(err);
+    });
+    wss.on('error', (err) => {
+      console.error('Error ->error');
+      console.error(err);
+    });
+    wss.on('headers', (headers) => {
+      console.error('headers ->headers');
+      console.error(JSON.stringify(headers));
     });
 
     wss.on('connection', (ws, req) => this.onNewConnection(ws, req));
@@ -61,6 +86,7 @@ export class Server extends EventEmitter {
   }
 
   private onNewConnection(socket: WebSocket, req: IncomingMessage) {
+    console.log(`Connection recevied from ${req.url}`);
     const cpId = Server.getCpIdFromUrl(req.url);
     if (!socket.protocol || !cpId) {
       // From Spec: If the Central System does not agree to using one of the subprotocols offered
@@ -74,6 +100,23 @@ export class Server extends EventEmitter {
     const client = new OcppClientConnection(cpId);
     client.setConnection(new Protocol(client, socket));
 
+    let isAlive = true;
+    socket.on('pong', () => {
+      console.error('Recevied a pong');
+      isAlive = true;
+    });
+    const pingInterval = setInterval(() => {
+      if (isAlive === false) {
+        socket.terminate();
+        return;
+      }
+      isAlive = false;
+      if (socket.readyState < WebSocket.CLOSING) {
+        socket.ping(() => {
+          console.error('Send Ping');
+        });
+      }
+    }, this.options.pingInterval ?? this.DEFAULT_PING_INTERVEL);
     socket.on('error', (err) => {
       console.info(err.message, socket.readyState);
       client.emit('error', err);
@@ -82,6 +125,8 @@ export class Server extends EventEmitter {
     socket.on('close', (code: number, reason: Buffer) => {
       const index = this.clients.indexOf(client);
       this.clients.splice(index, 1);
+      console.error('Websocket is closed and clearing pingpong task');
+      clearInterval(pingInterval);
       client.emit('close', code, reason);
       // this.emit('close', client, code, reason);
     });
@@ -92,8 +137,7 @@ export class Server extends EventEmitter {
   static getCpIdFromUrl(url: string | undefined): string | undefined {
     try {
       if (url) {
-        const encodedCpId = url.split('/')
-        .pop();
+        const encodedCpId = url.split('/').pop();
         if (encodedCpId) {
           return decodeURI(encodedCpId.split('?')[0]);
         }
