@@ -21,11 +21,12 @@ export class Server extends EventEmitter {
 
   private DEFAULT_PING_INTERVEL = 30000;
 
-  private isDebug = process.env.ENV === 'dev';
+  private isDebug = false;
 
   constructor(options: ServerOptions) {
     super();
     this.options = options;
+    this.isDebug = options?.isDebug ?? process.env.ENV === 'dev';
   }
 
   protected listen(port = 9220, options?: SecureContextOptions) {
@@ -105,12 +106,15 @@ export class Server extends EventEmitter {
     let isAlive = true;
     socket.on('pong', () => {
       if (this.isDebug) {
-        console.error('Recevied a pong');
+        console.error(`Recevied a pong for ${cpId}`);
       }
       isAlive = true;
     });
     const pingInterval = setInterval(() => {
       if (isAlive === false) {
+        console.error(
+          `Didn't received ping/pong for ${this.options.pingInterval} so closing ${cpId}`
+        );
         socket.terminate();
         return;
       }
@@ -118,7 +122,7 @@ export class Server extends EventEmitter {
       if (socket.readyState < WebSocket.CLOSING) {
         socket.ping(() => {
           if (this.isDebug) {
-            console.error('Send Ping');
+            console.error(`Send Ping for ${cpId}`);
           }
         });
       }
