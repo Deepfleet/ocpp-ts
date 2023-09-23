@@ -23,10 +23,17 @@ export class Server extends EventEmitter {
 
   private isDebug = false;
 
+  private logger;
+
+  error = (message) => (this.logger ? this.logger.error(message) : console.error(message));
+
+  log = (message) => (this.logger ? this.logger.info(message) : console.log(message));
+
   constructor(options: ServerOptions) {
     super();
     this.options = options;
     this.isDebug = options?.isDebug ?? process.env.ENV === 'dev';
+    this.logger = options?.logger;
   }
 
   protected listen(port = 9220, options?: SecureContextOptions) {
@@ -48,16 +55,16 @@ export class Server extends EventEmitter {
     });
 
     wss.on('wsClientError', (err, request) => {
-      console.error(`Error ->wsClientError from ${request.url}`);
-      console.error(err);
+      this.error(`Error ->wsClientError from ${request.url}`);
+      this.error(err);
     });
     wss.on('error', (err) => {
-      console.error('Error ->error');
-      console.error(err);
+      this.error('Error ->error');
+      this.error(err);
     });
     wss.on('headers', (headers) => {
-      console.error('headers ->headers');
-      console.error(JSON.stringify(headers));
+      this.error('headers ->headers');
+      this.error(JSON.stringify(headers));
     });
 
     wss.on('connection', (ws, req) => this.onNewConnection(ws, req));
@@ -89,8 +96,9 @@ export class Server extends EventEmitter {
   }
 
   private onNewConnection(socket: WebSocket, req: IncomingMessage) {
-    console.log(`Connection recevied from ${req.url}`);
+    this.log(`OCPP Connection recevied from ${req.url}`);
     const cpId = Server.getCpIdFromUrl(req.url);
+    this.error(`Request IP -> ${req.socket?.remoteAddress}`);
     if (!socket.protocol || !cpId) {
       // From Spec: If the Central System does not agree to using one of the subprotocols offered
       // by the client, it MUST complete the WebSocket handshake with a response without a
@@ -106,36 +114,35 @@ export class Server extends EventEmitter {
     let isAlive = true;
     socket.on('pong', () => {
       if (this.isDebug) {
-        console.error(`Recevied a pong for ${cpId}`);
+        this.error(`Recevied a pong for ${cpId}`);
       }
       isAlive = true;
     });
     const pingInterval = setInterval(() => {
       if (isAlive === false) {
-        console.error(
-          `Didn't received ping/pong for ${this.options.pingInterval} so closing ${cpId}`
-        );
-        socket.terminate();
+        this.error(`Didn't received ping/pong for ${this.options.pingInterval} so closing ${cpId}`);
+        socket.close();
         return;
       }
       isAlive = false;
       if (socket.readyState < WebSocket.CLOSING) {
         socket.ping(() => {
           if (this.isDebug) {
-            console.error(`Send Ping for ${cpId}`);
+            this.error(`Send Ping for ${cpId}`);
           }
         });
       }
     }, this.options.pingInterval ?? this.DEFAULT_PING_INTERVEL);
     socket.on('error', (err) => {
-      console.info(err.message, socket.readyState);
+      this.error(err.message);
       client.emit('error', err);
     });
 
     socket.on('close', (code: number, reason: Buffer) => {
       const index = this.clients.indexOf(client);
       this.clients.splice(index, 1);
-      console.error('Websocket is closed and clearing pingpong task');
+      this.error(`Websocket is closed and clearing pingpong task for ${client.getCpId()} `);
+      this.error(`with code ${code} and reason ${reason.toString()}`);
       clearInterval(pingInterval);
       client.emit('close', code, reason);
       // this.emit('close', client, code, reason);
