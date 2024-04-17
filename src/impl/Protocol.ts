@@ -63,16 +63,19 @@ export class Protocol {
           messageId,
           request,
           payload]);
-        this.socket.send(result);
-        this.pendingCalls[messageId] = {
-          resolve,
-          reject,
-        };
-
-        setTimeout(() => {
+        const timeout =setTimeout(() => {
           // timeout error
           this.onCallError(messageId, ERROR_INTERNALERROR, 'No response from the client', {});
         }, 10000);
+        this.pendingCalls[messageId] = {
+          resolve,
+          reject,
+          timeout
+        };
+        this.socket.send(result);
+        
+
+       
       } catch (e) {
         console.error(e);
         reject(e);
@@ -100,20 +103,22 @@ export class Protocol {
     errorDetails: any,
   ) {
     if (this.pendingCalls[messageId]) {
-      const { reject } = this.pendingCalls[messageId];
+      const { reject, timeout } = this.pendingCalls[messageId];
       if (reject) {
         reject(new OcppError(errorCode, errorDescription, errorDetails));
       }
+      clearTimeout(timeout);
       delete this.pendingCalls[messageId];
     }
   }
 
   private onCallResult(messageId: string, payload: any) {
     if (this.pendingCalls[messageId]) {
-      const { resolve } = this.pendingCalls[messageId];
+      const { resolve, timeout } = this.pendingCalls[messageId];
       if (resolve) {
         resolve(payload);
       }
+      clearTimeout(timeout);
       delete this.pendingCalls[messageId];
     }
   }
@@ -126,15 +131,17 @@ export class Protocol {
       const validator = new SchemaValidator(schema);
       validator.validate(payload);
       const response = await new Promise((resolve, reject) => {
-        setTimeout(() => {
+        const timeout = setTimeout(() => {
           // timeout error
           reject(new OcppError(ERROR_INTERNALERROR, 'No response from the handler'));
         }, 10000);
 
         const hasListener = this.eventEmitter.emit(request, payload, (result: any) => {
+          clearTimeout(timeout)
           resolve(result);
         });
         if (!hasListener) {
+          clearTimeout(timeout)
           reject(new OcppError(ERROR_NOTIMPLEMENTED, `Listener for action "${request}" not set`));
         }
       });
